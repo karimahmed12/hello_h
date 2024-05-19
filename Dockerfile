@@ -7,7 +7,7 @@ WORKDIR /app
 # Copy the current directory contents into the container at /app
 COPY . /app
 
-# Install system dependencies for nltk
+# Install system dependencies and build-essential for nltk
 RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install NLTK and download required data
+RUN pip install nltk
 RUN python -m nltk.downloader stopwords punkt wordnet
 
 # Make port 80 available to the world outside this container
