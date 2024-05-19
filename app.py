@@ -107,6 +107,7 @@
 # if __name__ == '__main__':
 #     app.run(debug=True)
 
+
 from flask import Flask, request, jsonify
 import numpy as np
 from tensorflow.keras.models import load_model
@@ -118,8 +119,9 @@ import string
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-import nltk
 
+# Load your trained model
+# model = load_model('model.h5')
 
 tfidf_vectorizer = TfidfVectorizer(max_features=1000)
 label_encoder = LabelEncoder()
@@ -147,7 +149,7 @@ stop_words = set(stopwords.words('english'))
 lemmatizer = WordNetLemmatizer()
 
 def preprocess_text(text):
-    if isinstance(text, str):
+    if isinstance(text, str): 
         tokens = word_tokenize(text)
         tokens = [word for word in tokens if word not in stop_words]
         tokens = [lemmatizer.lemmatize(word) for word in tokens]
@@ -239,4 +241,4 @@ def chatbot():
     return jsonify({'response': response})
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=80)
+    app.run(debug=True)
