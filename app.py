@@ -120,12 +120,7 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import nltk
 
-nltk.download('punkt')
-nltk.download('stopwords')
-# Load your trained model
-# model = load_model('model.h5')
-nltk.download('punkt')
-nltk.download('stopwords')
+
 tfidf_vectorizer = TfidfVectorizer(max_features=1000)
 label_encoder = LabelEncoder()
 
