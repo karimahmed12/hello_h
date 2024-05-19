@@ -120,6 +120,8 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import nltk
 
+
+nltk.download('stopwords')
 # Load your trained model
 # model = load_model('model.h5')
 
