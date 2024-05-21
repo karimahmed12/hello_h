@@ -1,5 +1,4 @@
-
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import LabelEncoder
@@ -17,7 +16,6 @@ nltk.download('punkt')
 nltk.download('wordnet')
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'  # Replace with your secret key
 
 # Load the TF-IDF vectorizer and label encoder
 tfidf_vectorizer = TfidfVectorizer(max_features=1000)
@@ -53,10 +51,14 @@ for col in ['Precaution_1', 'Precaution_2', 'Precaution_3', 'Precaution_4']:
 
 df_second.fillna('', inplace=True)
 
+# Store user state
+user_state = {}
+
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.get_json()
     user_input = data.get('user_input')
+    user_id = data.get('user_id')  # Assuming user_id is provided to identify the user
 
     def predict_disease(user_input):
         user_input_vector = tfidf_vectorizer.transform([user_input])
@@ -83,9 +85,8 @@ def chat():
         else:
             return {'error': 'No actions or precautions found for this disease.'}
 
-    def chatbot_response(user_input):
+    def chatbot_response(user_input, user_id):
         user_input = user_input.lower().strip()
-
         if user_input in ["hi", "hello"]:
             return "Hello! How can I assist you today?"
         elif user_input in ["bye", "goodbye"]:
@@ -94,30 +95,30 @@ def chat():
             return "I'm just a computer program, so I don't have feelings, but I'm here to assist you!"
         elif user_input in ["thank you", "thanks"]:
             return "You're welcome! If you have any more questions, feel free to ask."
-
-        if 'pending_action' in session:
-            if user_input == "yes":
-                session.pop('pending_action', None)
-                session.pop('matched_disease', None)
-                return "Sorry, the disease corresponding to your description was not found in the dataset."
-            elif user_input == "no":
-                session.pop('pending_action', None)
-                session.pop('matched_disease', None)
-                return "Okay, if you have any other questions, feel free to ask."
-            else:
-                return "Sorry, I didn't understand that. Please answer with 'yes' or 'no'."
-
-        matched_disease = predict_disease(user_input)
-        if matched_disease:
-            session['matched_disease'] = matched_disease
-            session['pending_action'] = True
-            return f"The matched disease for your description is: {matched_disease}. Do you want to know what actions/precautions you should take? (yes/no)"
+        elif user_input == "yes" and user_id in user_state:
+            # User wants to know actions for the matched disease
+            matched_disease = user_state[user_id]['matched_disease']
+            actions = get_actions(matched_disease)
+            return actions
         else:
-            return "Sorry, the disease corresponding to your description was not found in the dataset."
+            matched_disease = predict_disease(user_input)
+            if matched_disease:
+                actions_available = matched_disease in df_second['Disease'].values
+                user_state[user_id] = {'matched_disease': matched_disease}  # Save the matched disease in the user state
+                if actions_available:
+                    return f"The matched disease for your description is: {matched_disease}. Do you want to know what actions/precautions you should take? (yes/no)"
+                else:
+                    return f"The matched disease for your description is: {matched_disease}. However, no actions/precautions are available for this disease. Do you want to know what actions/precautions you should take? (yes/no)"
+            else:
+                return "Sorry, the disease corresponding to your description was not found in the dataset."
 
     if user_input:
-        response = chatbot_response(user_input)
-        return jsonify({'response': response})
+        # General chatbot response, including disease prediction and actions/precautions
+        response = chatbot_response(user_input, user_id)
+        if isinstance(response, dict):
+            return jsonify(response)
+        else:
+            return jsonify({'response': response})
     else:
         return jsonify({'error': 'Invalid input'})
 
