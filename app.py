@@ -243,7 +243,6 @@
 
 from flask import Flask, request, jsonify
 import numpy as np
-from tensorflow.keras.models import load_model
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics.pairwise import cosine_similarity
@@ -261,34 +260,22 @@ nltk.download('wordnet')
 
 app = Flask(__name__)
 
-# Load your trained model
-model = load_model('model.h5')
-
 # Load the TF-IDF vectorizer and label encoder
 tfidf_vectorizer = TfidfVectorizer(max_features=1000)
 label_encoder = LabelEncoder()
 
-# Load your dataset or any necessary data
+# Load your datasets
 df = pd.read_csv('Symptom2Disease.csv')
+df_second = pd.read_csv('symptom_precaution.csv')
 
-# Preprocess the data
+# Preprocess the datasets
 X = tfidf_vectorizer.fit_transform(df['text'].astype(str))
 y = label_encoder.fit_transform(df['label'])
 
-df_second = pd.read_csv('symptom_precaution.csv')
-
-# Data cleaning and preprocessing
-df_second['Disease'] = df_second['Disease'].str.lower().str.strip()
-df_second['Precaution_1'] = df_second['Precaution_1'].str.lower().str.strip()
-df_second['Precaution_2'] = df_second['Precaution_2'].str.lower().str.strip()
-df_second['Precaution_3'] = df_second['Precaution_3'].str.lower().str.strip()
-df_second['Precaution_4'] = df_second['Precaution_4'].str.lower().str.strip()
-
-df_second['Disease'] = df_second['Disease'].apply(lambda x: x.translate(str.maketrans('', '', string.punctuation)))
-df_second['Precaution_1'] = df_second['Precaution_1'].apply(lambda x: x.translate(str.maketrans('', '', string.punctuation)))
-df_second['Precaution_2'] = df_second['Precaution_2'].apply(lambda x: x.translate(str.maketrans('', '', string.punctuation)))
-df_second['Precaution_3'] = df_second['Precaution_3'].apply(lambda x: x.translate(str.maketrans('', '', string.punctuation)) if isinstance(x, str) else x)
-df_second['Precaution_4'] = df_second['Precaution_4'].apply(lambda x: x.translate(str.maketrans('', '', string.punctuation)) if isinstance(x, str) else x)
+# Data cleaning and preprocessing for the second dataset
+df_second['Disease'] = df_second['Disease'].str.lower().str.strip().apply(lambda x: x.translate(str.maketrans('', '', string.punctuation)))
+for col in ['Precaution_1', 'Precaution_2', 'Precaution_3', 'Precaution_4']:
+    df_second[col] = df_second[col].str.lower().str.strip().apply(lambda x: x.translate(str.maketrans('', '', string.punctuation)) if isinstance(x, str) else '')
 
 stop_words = set(stopwords.words('english'))
 lemmatizer = WordNetLemmatizer()
@@ -302,19 +289,20 @@ def preprocess_text(text):
     else:
         return []
 
-df_second['Precaution_1_tokens'] = df_second['Precaution_1'].apply(preprocess_text)
-df_second['Precaution_2_tokens'] = df_second['Precaution_2'].apply(preprocess_text)
-df_second['Precaution_3_tokens'] = df_second['Precaution_3'].apply(preprocess_text)
-df_second['Precaution_4_tokens'] = df_second['Precaution_4'].apply(preprocess_text)
+for col in ['Precaution_1', 'Precaution_2', 'Precaution_3', 'Precaution_4']:
+    df_second[f'{col}_tokens'] = df_second[col].apply(preprocess_text)
 
 df_second.fillna('', inplace=True)
+
+# Store user state
+user_state = {}
 
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.get_json()
     user_input = data.get('user_input')
     user_response = data.get('user_response')
-    matched_disease = data.get('matched_disease')
+    user_id = data.get('user_id')  # Assuming user_id is provided to identify the user
 
     def predict_disease(user_input):
         user_input_vector = tfidf_vectorizer.transform([user_input])
@@ -351,15 +339,20 @@ def chat():
         else:
             matched_disease = predict_disease(user_input)
             actions_available = matched_disease in df_second['Disease'].values
+            user_state[user_id] = {'matched_disease': matched_disease}  # Save the matched disease in the user state
             if actions_available:
                 return f"The matched disease for your description is: {matched_disease}. Do you want to know what actions/precautions you should take? (yes/no)"
             else:
                 return f"The matched disease for your description is: {matched_disease}. However, no actions/precautions are available for this disease. Do you want to know what actions/precautions you should take? (yes/no)"
 
-    if user_response and matched_disease:
+    if user_response and user_id in user_state:
         # User wants to know actions for the matched disease
-        actions = get_actions(matched_disease)
-        return jsonify(actions)
+        matched_disease = user_state[user_id]['matched_disease']
+        if user_response.lower().strip() == "yes":
+            actions = get_actions(matched_disease)
+            return jsonify(actions)
+        else:
+            return jsonify({'response': 'Okay, if you have any other questions, feel free to ask.'})
     elif user_input:
         # General chatbot response, including disease prediction
         response = chatbot_response(user_input)
