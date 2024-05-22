@@ -96,15 +96,31 @@ def chat():
         elif user_input in ["thank you", "thanks"]:
             return "You're welcome! If you have any more questions, feel free to ask."
         elif user_input == "yes" and user_id in user_state:
-            # User wants to know actions for the matched disease
-            matched_disease = user_state[user_id]['matched_disease']
-            actions = get_actions(matched_disease)
-            return actions
+            user_data = user_state[user_id]
+            if user_data['action_provided']:
+                return "You've already received the actions/precautions. If you have any other questions, feel free to ask."
+            else:
+                # User wants to know actions for the matched disease
+                matched_disease = user_data['matched_disease']
+                actions = get_actions(matched_disease)
+                user_data['action_provided'] = True  # Mark actions as provided
+                if 'error' in actions:
+                    return actions['error']
+                else:
+                    return (
+                        f"Actions/Precautions for {matched_disease}:\n"
+                        f"1. {actions['precaution_1']}\n"
+                        f"2. {actions['precaution_2']}\n"
+                        f"3. {actions['precaution_3']}\n"
+                        f"4. {actions['precaution_4']}"
+                    )
+        elif user_input == "no" and user_id in user_state:
+            return "Chatbot: Okay, if you have any other questions, feel free to ask."
         else:
             matched_disease = predict_disease(user_input)
             if matched_disease:
                 actions_available = matched_disease in df_second['Disease'].values
-                user_state[user_id] = {'matched_disease': matched_disease}  # Save the matched disease in the user state
+                user_state[user_id] = {'matched_disease': matched_disease, 'action_provided': False}  # Save the matched disease in the user state
                 if actions_available:
                     return f"The matched disease for your description is: {matched_disease}. Do you want to know what actions/precautions you should take? (yes/no)"
                 else:
@@ -118,7 +134,7 @@ def chat():
         if isinstance(response, dict):
             return jsonify(response)
         else:
-            return jsonify({'response': response})
+            return jsonify(response)
     else:
         return jsonify({'error': 'Invalid input'})
 
